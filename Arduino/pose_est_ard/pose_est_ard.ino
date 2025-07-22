@@ -1,5 +1,5 @@
 #include <Wire.h>
-#include <VL53L0X.h>
+#include <VL53L0X_modified.h>
 
 #define N_SENSORS 4
 const int xshutPins[N_SENSORS] = {2, 3, 4, 5};
@@ -30,6 +30,9 @@ void setup() {
 }
 
 void loop() {
+  // for (int i = 0; i < sensor_amt; i++) {
+  //   sensors[i].readyRangeSingle();
+  // }
   for (int i = 0; i < sensor_amt; i++) {
     uint16_t dist = sensors[i].readRangeSingleMillimeters();
     Serial.print(dist);
