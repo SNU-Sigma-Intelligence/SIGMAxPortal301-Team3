@@ -1,1 +1,1 @@
-print("hello junho 222")
+print(" 장한진 바보 ")
