@@ -3,17 +3,19 @@
 
 #define N_SENSORS 4
 const int xshutPins[N_SENSORS] = {2, 3, 4, 5};
-const uint8_t addresses[N_SENSORS] = {0x30, 0x31, 0x32, 0x33};
+const uint8_t addresses[N_SENSORS] = {0x30, 0x32, 0x34, 0x36};
 int sensor_amt = 4;
 
 VL53L0X sensors[N_SENSORS];
 
 void initSensors() {
+  Serial.println("Hi");
   for (int i = 0; i < sensor_amt; i++) {
     pinMode(xshutPins[i], OUTPUT);
     digitalWrite(xshutPins[i], LOW);
   }
   delay(100);
+  Serial.println("Hi");
 
   for (int i = 0; i < sensor_amt; i++) {
     digitalWrite(xshutPins[i], HIGH);
@@ -21,6 +23,7 @@ void initSensors() {
     sensors[i].init(true);
     sensors[i].setAddress(addresses[i]);
   }
+  Serial.println("Hi");
 }
 
 void setup() {
