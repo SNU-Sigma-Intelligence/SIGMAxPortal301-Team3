@@ -5,6 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+torch.autograd.set_detect_anomaly(True)
+
 # 거리 기반 센서 오차 모델
 def sensor_noise_std(dist, a=0.01, b=0.002):
     return a * dist + b
@@ -29,7 +31,7 @@ class Sensor(nn.Module):
 
 # ray-plane 교점 계산
 def ray_plane_intersect(ray_o, ray_d, plane_n, plane_p):
-    denom = (ray_d @ plane_n).clamp(min=1e-6)
+    denom = ray_d @ plane_n
     t = ((plane_p - ray_o) @ plane_n) / denom
     point = ray_o + t.unsqueeze(-1) * ray_d
     return point, t
@@ -44,7 +46,10 @@ def estimate_normal(points):
     if centered.shape[0] < 3:
         raise ValueError("Too few valid points to estimate normal.")
     _, _, V = torch.svd(centered)
-    return V[:, -1]  # 최소 특이값에 대응
+    normal = V[:, -1]  # 최소 특이값에 대응하는 벡터
+    if normal[-1] < 0:
+        normal = -normal
+    return normal
 
 # 각도 오차 계산
 def angle_error(n_est, n_true):
@@ -63,6 +68,12 @@ def evaluate_model(sensor: Sensor, plane_dataset, noise_sample_per_plane=5):
         p_n = torch.tensor(plane['normal'], dtype=torch.float32, device=ray_o.device)
         p_p = torch.tensor(plane['point'], dtype=torch.float32, device=ray_o.device)
 
+        # 방향 패널티: 센서 방향이 평면을 향하지 않을 경우
+        cos_angle = ray_d @ p_n  # ray가 평면을 얼마나 잘 향하는가
+        angle_thresh = torch.cos(torch.tensor(torch.deg2rad(torch.tensor(20.0)), device=ray_o.device))
+        penalty_a = F.relu((angle_thresh - cos_angle) * 20.0)
+        regulation_penalty += penalty_a.sum()
+
         error_sum = torch.tensor(0.0, device=ray_o.device)
         for _ in range(noise_sample_per_plane):
             inter_pts, dists = ray_plane_intersect(ray_o, ray_d, p_n, p_p)
@@ -72,17 +83,14 @@ def evaluate_model(sensor: Sensor, plane_dataset, noise_sample_per_plane=5):
             if invalid_mask.any():
                 continue
 
-            # 방향 패널티: 센서 방향이 평면을 향하지 않을 경우
-            cos_angle = -(ray_d @ p_n)  # ray가 평면을 얼마나 잘 향하는가
-            angle_thresh = torch.cos(torch.tensor(torch.deg2rad(torch.tensor(20.0)), device=ray_o.device))
-            penalty_a = F.relu((angle_thresh - cos_angle) * 20.0)
-            regulation_penalty += penalty_a.sum()
             noise_std = sensor_noise_std(dists)
             # noise 항은 gradient가 끊기지 않도록 detaching
             noise = (torch.randn_like(inter_pts) * noise_std.unsqueeze(-1)).detach()
             noisy_pts = inter_pts + noise
 
             n_est = estimate_normal(noisy_pts)
+            if torch.isnan(n_est).any() or torch.isinf(n_est).any():
+                print(n_est, p_n)
             err = angle_error(n_est, p_n)
             error_sum += err
 
@@ -105,10 +113,11 @@ def load_plane_dataset(csv_path):
     return dataset
 
 # 학습 루프 실행 함수
-def train_sensor_model(csv_path, num_sensors=5, epochs=200, lr=0.01):
+def train_sensor_model(csv_path, num_sensors=5, epochs=200, lr=0.02):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset = load_plane_dataset(csv_path)
     sensor = Sensor(num_sensors).to(device)
+    visualize_sensor(sensor)
     optimizer = torch.optim.Adam(sensor.parameters(), lr=lr)
 
     for epoch in range(epochs):
