@@ -42,7 +42,10 @@ void setup() {
   lidarSerial.begin(115200);
   delay(500);
 
+  Serial.println("setup start");
+
   sendModeC0Command();
+  Serial.println("setup finished");
 }
 
 void loop() {
