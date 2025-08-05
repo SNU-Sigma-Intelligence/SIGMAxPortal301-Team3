@@ -61,19 +61,8 @@ def estimate_normal(points):
     if centered.shape[0] < 3:
         raise ValueError("Too few valid points to estimate normal.")
 
-    # 공분산 행렬 계산
-    covariance_matrix = centered.T @ centered
-
-    # 역전파 시 수치적 안정성을 위해 작은 jitter 값을 더함
-    # 고유값이 0이 되는 것을 방지하여 NaN 그래디언트 발생을 막음
-    jitter = 1e-6 * torch.eye(covariance_matrix.shape[0], device=covariance_matrix.device)
-    
-    # torch.linalg.eigh는 대칭 행렬에 대한 고유값과 고유벡터를 계산
-    # 고유값은 오름차순으로 정렬되어 반환됨
-    eigenvalues, eigenvectors = torch.linalg.eigh(covariance_matrix + jitter)
-    
-    # 법선 벡터는 가장 작은 고유값에 해당하는 고유벡터
-    normal = eigenvectors[:, 0]
+    _, _, V = torch.svd(centered)
+    normal = V[:, -1]
     
     # 법선 벡터의 방향을 일관성 있게 Z축의 양수 방향으로 조정
     if normal[-1] < 0:
