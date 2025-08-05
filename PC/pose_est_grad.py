@@ -86,13 +86,16 @@ def evaluate_model(sensor: Sensor, plane_dataset, noise_sample_per_plane=5):
     angle_penalty = F.relu(sensor.dir_angles[:, 0] - theta_max).sum() + \
                      F.relu(theta_min - sensor.dir_angles[:, 0]).sum()
 
-    x_min, x_max = -0.5, 0.5
-    y_min, y_max = -0.5, 0.5
     position_penalty_weight = 100
-    position_penalty = F.relu(sensor.pos_xy[:, 0] - x_max).sum() + \
-                        F.relu(x_min - sensor.pos_xy[:, 0]).sum() + \
-                        F.relu(sensor.pos_xy[:, 1] - y_max).sum() + \
-                        F.relu(y_min - sensor.pos_xy[:, 1]).sum()
+    r_min, r_max = 0, 0.5
+    position_penalty = F.relu(torch.linalg.norm(sensor.pos_xy, dim=1) - r_max).sum() + \
+                      F.relu(r_min - torch.linalg.norm(sensor.pos_xy, dim=1)).sum()
+    # x_min, x_max = -0.5, 0.5
+    # y_min, y_max = -0.5, 0.5
+    # position_penalty = F.relu(sensor.pos_xy[:, 0] - x_max).sum() + \
+    #                     F.relu(x_min - sensor.pos_xy[:, 0]).sum() + \
+    #                     F.relu(sensor.pos_xy[:, 1] - y_max).sum() + \
+    #                     F.relu(y_min - sensor.pos_xy[:, 1]).sum()
     
     range_penalty_weight = 10
     max_range = 3
@@ -107,7 +110,7 @@ def evaluate_model(sensor: Sensor, plane_dataset, noise_sample_per_plane=5):
         inter_pts, dists = ray_plane_intersect(ray_o, ray_d, p_n, p_p)
         range_penalty += F.relu(dists - max_range).sum() + \
                             F.relu(min_range - dists).sum()
-            
+        
         # 유효하지 않은 거리나 NaN 탐지
         invalid_mask = (dists < 0) | torch.isnan(dists) | torch.isinf(dists)
         if invalid_mask.any():
@@ -202,5 +205,5 @@ def visualize_sensor(sensor, save_path=None):
         plt.show()
 
 # 사용 예시:
-sensor = train_sensor_model("plane_data.csv", num_sensors=20, epochs=200, lr=0.01)
+sensor = train_sensor_model("plane_dataset.csv", num_sensors=20, epochs=200, lr=0.01)
 visualize_sensor(sensor)
